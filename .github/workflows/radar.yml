@@ -5,7 +5,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: auditware/radar-action@v1
+      - uses: auditware/radar-action@main
         with:
           path: 'programs/'
-          fail-on: 'high'
+          fail-on: 'low'
