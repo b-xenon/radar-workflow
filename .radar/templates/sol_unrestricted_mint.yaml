@@ -1,0 +1,69 @@
+# .radar/templates/solayer_unrestricted_native_sol_mint.yaml
+version: 0.1.0
+author: you
+name: Unrestricted native SOL mint under `solayer`
+severity: High
+certainty: Medium
+description: >
+  Detects unsafe mint via `sol_mint_native_sol(..)` gated only by the `solayer` feature,
+  without explicit authorization checks (guardian/operator/owner/require/threshold).
+
+rule: |
+  # Radar template rule (Python DSL).
+  # Docs: Wiki → How to Write Templates / Rule Functions.
+  # - ast: iterable[(source_path:str, nodes:ASTNode)]
+  # - print(node.to_result()) -> report finding at node location.
+
+  SOLAYER_HINTS = ("feature=\"solayer\"", "feature = \"solayer\"", "cfg(feature", "solayer")
+  GUARD_HINTS = (
+      "only_operator", "only_guardian", "only_owner",
+      "require", "require_eq", "require_keys_eq", "assert",
+      "threshold", "guardian", "operator", "admin", "owner"
+  )
+
+  def contains_any(text: str, needles: tuple[str, ...]) -> bool:
+      low = text.lower()
+      return any(n.lower() in low for n in needles)
+
+  for source, nodes in ast:
+      try:
+          # 1) Найти вызовы sol_mint_native_sol(...)
+          calls = nodes.find_by_names("sol_mint_native_sol").exit_on_none()
+          for c in calls:
+              parent = c.parent
+              parent_src = str(parent.src) if hasattr(parent, "src") else ""
+              file_gate = contains_any(source, ("solayer",))
+              attr_gate = False
+              try:
+                  attrs_node = parent
+                  depth = 0
+                  while attrs_node is not None and depth < 3:
+                      attrs = getattr(attrs_node, "attrs", None)
+                      if attrs and contains_any(str(attrs), SOLAYER_HINTS):
+                          attr_gate = True
+                          break
+                      attrs_node = getattr(attrs_node, "parent", None)
+                      depth += 1
+              except:
+                  pass
+
+              if not (file_gate or attr_gate or contains_any(parent_src, SOLAYER_HINTS)):
+                  continue
+
+              guard_near = False
+              try:
+                  ctx_texts = []
+                  for hop in (parent, getattr(parent, "parent", None)):
+                      if hop is None: continue
+                      s = str(getattr(hop, "src", "")) + " " + str(getattr(hop, "attrs", ""))
+                      ctx_texts.append(s)
+                  guard_near = any(contains_any(t, GUARD_HINTS) for t in ctx_texts)
+              except:
+                  guard_near = False
+
+              if guard_near:
+                  continue
+
+              print(parent.to_result())
+      except:
+          continue
