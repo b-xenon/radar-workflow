@@ -1,11 +1,26 @@
 name: Radar
-on: [push, pull_request]
+on: [push]
 jobs:
-  scan:
+  analyze:
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: auditware/radar-action@main
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          path: 'programs/'
-          fail-on: 'low'
+          submodules: 'recursive'
+      
+      - name: Run radar
+        id: radar
+        uses: auditware/radar-action@main
+        with:
+          path: "."
+          ignore: "low"
+  
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: output.sarif
