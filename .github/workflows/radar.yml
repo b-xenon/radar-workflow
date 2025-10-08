@@ -1,0 +1,11 @@
+name: Radar
+on: [push, pull_request]
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: auditware/radar-action@v1
+        with:
+          path: 'programs/'
+          fail-on: 'high'
